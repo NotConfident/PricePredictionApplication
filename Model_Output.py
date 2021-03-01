@@ -12,59 +12,37 @@ filename = 'SPY_Model.pkl'
 loaded_model = xgb.Booster({'nthread': 4})  # init model
 loaded_model.load_model(filename)
 
-ticker_JSON = {}
-ticker = ''
-
-class retrieveTickerInfo(Resource): # Retrieve name of Ticker -> Go to Yahoo Finance and scrape, Day Open / Low / High, Volume
+class predictPrice(Resource):
     def get(self):
-        global ticker_JSON
-        global ticker
         parser = reqparse.RequestParser()  # initialize
         parser.add_argument('ticker', required=True)  # add arguments
         args = parser.parse_args()  # parse arguments to dictionary
         ticker = args['ticker']
 
-        string=['Previous Close', 'Open', 'Bid', 'Ask', 'Day Range', '52 Week Range', 'Volume', 'Avg. Volume']
-        value = [] # Value
-
-        profile = pd.read_html('https://finance.yahoo.com/quote/' + ticker)
-        profile_df = pd.DataFrame(profile[0])
-
-        for i in profile_df[1]:
-            value.append(i)
-
-        final_df = pd.DataFrame(data=[value], columns=string)
-        print(final_df)
-        final_df = final_df.to_dict() # Convert to "JSON". to_json() simply return escaped string
-        ticker_JSON = jsonify(final_df)
-        # ticker_JSON.status_code = 200 # or 400 or whatever
-        return ticker_JSON
-
-class predictPrice(Resource):
-    def get(self):
         ticker_YF = yf.Ticker(ticker)
-        ticker_YF = ticker_YF.get_info()
-        
-        string=['Previous Close', 'Open', 'Bid', 'Ask', 'Day Range', '52 Week Range', 'Volume', 'Avg. Volume']
-        value = [] # Value
+        ticker_YF = ticker_YF.get_info() # Retrieves information on the said Ticker
 
         price_open = ticker_YF['open']
         high = ticker_YF['dayHigh']
         low = ticker_YF['dayLow']
         volume = ticker_YF['volume']
 
-        prediction = pd.DataFrame(np.array([[price_open, high, low, volume]]), columns=['Open', 'High', 'Low', 'Volume'])
-        prediction = xgb.DMatrix(prediction)
-        prediction = loaded_model.predict(prediction)
+        # Convert to dataframe to prepare for JSON conversion
+        prediction_pd = pd.DataFrame(data=[[price_open, high, low, volume]], columns=['Open', 'High', 'Low', 'Volume'])
+        prediction_pd_JSON = prediction_pd.to_dict() # Converting to dictionary before converting it to JSON
 
+        prediction = xgb.DMatrix(prediction_pd) # Creating the DMatrix with the Dataframe
+        prediction = loaded_model.predict(prediction) # Predicting the price using the DMatrix
+
+        # Convert to dataframe to prepare for JSON conversion
         prediction_JSON = pd.DataFrame(data=[prediction], columns=['Predicted Value'])
-        prediction_JSON = prediction_JSON.to_dict()
-        return jsonify(prediction_JSON)
+        prediction_JSON = prediction_JSON.to_dict() # Converting to dictionary before converting it to JSON
+        
+        return jsonify(prediction_pd_JSON, prediction_JSON)
 
 app = Flask(__name__)
 api = Api(app)
 
-api.add_resource(retrieveTickerInfo, '/retrieveTickerInfo')
 api.add_resource(predictPrice, '/predictPrice')
 
 if __name__ == '__main__':
