@@ -6,6 +6,7 @@ import pandas as pd
 import xgboost as xgb
 import numpy as np
 import yfinance as yf
+import requests
 
 filename = 'SPY_Model.pkl'
 loaded_model = xgb.Booster({'nthread': 4})  # init model
@@ -42,9 +43,19 @@ class retrieveTickerInfo(Resource): # Retrieve name of Ticker -> Go to Yahoo Fin
 class predictPrice(Resource):
     def get(self):
         ticker_YF = yf.Ticker(ticker)
-        print(ticker_YF)
-        # return ticker_JSON
+        ticker_YF = ticker_YF.get_info()
+        
+        string=['Previous Close', 'Open', 'Bid', 'Ask', 'Day Range', '52 Week Range', 'Volume', 'Avg. Volume']
+        value = [] # Value
 
+        price_open = ticker_YF['open']
+        high = ticker_YF['dayHigh']
+        low = ticker_YF['dayLow']
+        volume = ticker_YF['volume']
+
+        prediction = pd.DataFrame(np.array([[price_open, high, low, volume]]), columns=['Open', 'High', 'Low', 'Volume'])
+        prediction = xgb.DMatrix(prediction)
+        print(loaded_model.predict(prediction))
 
 app = Flask(__name__)
 api = Api(app)
