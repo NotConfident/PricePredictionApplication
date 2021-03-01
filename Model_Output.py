@@ -55,7 +55,11 @@ class predictPrice(Resource):
 
         prediction = pd.DataFrame(np.array([[price_open, high, low, volume]]), columns=['Open', 'High', 'Low', 'Volume'])
         prediction = xgb.DMatrix(prediction)
-        print(loaded_model.predict(prediction))
+        prediction = loaded_model.predict(prediction)
+
+        prediction_JSON = pd.DataFrame(data=[prediction], columns=['Predicted Value'])
+        prediction_JSON = prediction_JSON.to_dict()
+        return jsonify(prediction_JSON)
 
 app = Flask(__name__)
 api = Api(app)
